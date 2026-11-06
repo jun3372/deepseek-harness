@@ -38,6 +38,13 @@ export interface DesktopElectronBuilderConfig {
     readonly sign: boolean
     readonly writeUpdateInfo: boolean
   }
+  readonly linux: {
+    readonly icon: string
+    readonly executableName: 'deepseek-harness'
+    readonly category: 'Development'
+    readonly maintainer: string
+    readonly target: readonly ['AppImage', 'deb', 'rpm']
+  }
   readonly win: {
     readonly forceCodeSigning: boolean
     readonly signtoolOptions: {
@@ -46,6 +53,8 @@ export interface DesktopElectronBuilderConfig {
       readonly signingHashAlgorithms: readonly string[]
     }
   }
+  readonly deb: { readonly packageName: 'deepseek-harness' }
+  readonly rpm: { readonly packageName: 'deepseek-harness' }
   readonly nsis: {
     readonly uninstallDisplayName: '${productName}'
     readonly include: string

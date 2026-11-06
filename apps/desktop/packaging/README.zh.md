@@ -17,6 +17,7 @@ description: "在本地或 Windows／macOS Actions 中生成 Desktop 安装包�
 - [配置与本地构建](#configuration-and-local-builds)
 - [Windows Actions 打包](#windows-actions)
 - [macOS 自托管打包](#macos-actions)
+- [Linux 未签名打包](#linux-unsigned-packaging)
 - [未签名 Windows 测试安装包](#unsigned-windows-test-installer)
 - [无发布签名的本地 macOS DMG](#local-macos-dmg-without-release-signing)
 - [macOS 发布签名与诊断](#macos-release-signing)
@@ -97,7 +98,7 @@ pnpm run package:desktop:mac:x64
 pnpm run package:desktop:win:x64
 ```
 
-macOS arm64 命令要求 Apple Silicon。macOS x64 命令可以在 Intel macOS 或带 Rosetta 的 Apple Silicon 上运行。Windows x64 命令要求 Windows x64。Linux 不是受支持的 Desktop 发布目标。
+macOS arm64 命令要求 Apple Silicon。macOS x64 命令可以在 Intel macOS 或带 Rosetta 的 Apple Silicon 上运行。Windows x64 命令要求 Windows x64。Linux x64 提供未签名的 AppImage、DEB 与 RPM 安装包，不带更新源；详见 [Linux 未签名打包](#linux-unsigned-packaging)。
 
 macOS 正式发布和本地未签名 DMG 都通过 [electron-builder 配置](../scripts/electron-builder-config.mjs)中的 `dmg.format: 'ULMO'` 使用 LZMA 压缩。[构建时补丁](../../../patches/app-builder-lib@26.17.0.patch)为固定版本 builder 的校验规则和 TypeScript 声明添加此格式。
 
@@ -206,6 +207,22 @@ Mac 打包从 `.env.macos` 读取以下调优字段：
 两个代理字段互相独立，拒绝 URL 中的凭证、路径、查询参数和片段。空值沿用继承的网络设置。显式下载代理会替换子进程的代理变量，仅绕过本地主机；它不修改系统设置。公司代理地址仅写入 Git 忽略的本地文件；具体地址参见内部文档。
 
 Apple 工具使用 macOS 当前活动网络服务的 HTTP/HTTPS 代理。配置公证代理后，打包会检查代理可达性、保存该服务的设置，在两条产物任务期间启用代理，并在两条任务均结束后恢复原设置。对于原本关闭、服务器为空且端口为零的代理，恢复时仅关闭代理；临时服务器和端口可能保留，但不生效。仅生成目录的打包会在签名目录构建完成后的 App 公证期间启用代理。这会临时影响其他应用，并要求修改系统代理的权限；必须先禁用 PAC、自动发现、SOCKS 及需要认证的代理配置。打包和恢复在读取恢复记录或修改代理前获取同一个用户级 POSIX 文件锁；进程退出会释放锁的持有权，锁文件保留。该锁在首次使用时才加载 `@deepseek-ai/node-addon-system/flock`，而不是在脚本启动时加载，因此 `check:package` 和打包入口在未构建 `native/system` 的 checkout 上也能加载；加锁时若宿主 addon 二进制或入口的 JavaScript 缺失，加载器会先运行 `pnpm run build:native-system` 和 `pnpm --dir native/system run build:ts` 再加锁，因此恢复命令在这样的 checkout 上同样可用。这会阻止不同 checkout 的代理事务重叠；其他用户及网络设置工具不得同时修改这些设置。SIGINT/SIGTERM 会等待活动任务结束后恢复。强制终止或恢复失败后，先停止残留公证进程，再运行 `pnpm --dir apps/desktop run restore:mac-proxy`；保存的记录会保留到恢复成功。配置检查仅验证 URL 语法，不修改系统设置或连接代理。
+
+<a id="linux-unsigned-packaging"></a>
+
+## Linux 未签名打包
+
+在 Linux x64 上运行完整的未签名打包命令：
+
+```sh
+pnpm run package:desktop:linux:x64
+```
+
+该命令要求 Linux x64 宿主，且不使用 dotenv 或机器预设：应用 ID 使用 `com.deepseek.harness`，不包含更新源、强制更新策略与签名。外部工具 `rpmbuild`、`dpkg-deb`、`xz`、`fakeroot`、`readelf` 分别来自 `rpm`、`dpkg`、`xz-utils`、`fakeroot`、`binutils` 软件包。`DSH_DESKTOP_LINUX_PACK_CONCURRENCY` 选择工作区打包的并发数，默认为 `4`。命令把 AppImage、DEB、RPM 写入 `.desktop-build/targets/linux-x64/unsigned-artifacts/`。electron-builder 按格式命名架构，因此产物为 `deepseek-harness-<version>-linux-x86_64-unsigned.AppImage`、`deepseek-harness-<version>-linux-amd64-unsigned.deb`、`deepseek-harness-<version>-linux-x86_64-unsigned.rpm`，且不生成发布完成记录，因此上传命令无法发布这些产物。在 electron-builder 与打包后运行时冒烟之后，每个 ELF 文件都会用 `readelf --version-info` 扫描；任何要求的 glibc 高于 2.28 的二进制都会让构建失败并列出该文件，因为 electron-builder 在构建机上解析 libc 符号，较新的宿主会悄悄抬高产物的 glibc 下限。加 `--check` 只校验配置与工具而不构建；加 `--dir` 只生成未打包的应用目录并跳过该扫描。
+
+`Package Desktop · Linux · x64` [手动工作流](../../../.github/workflows/linux-package.yml) 运行在 `ubuntu-24.04` 上。它通过 `source_ref` 选择仓库内分支或 `dsh-v*` tag，像其他平台一样解析 `version_mode`（`default` 取 `build-number`）与 `build_version`，用 `apt` 安装打包工具与 Electron 运行库，产物与诊断日志保留 14 天，不发布任何内容。运行共用 `linux-desktop-package` 并发组，且不要求 `DESKTOP_PUBLISH_RUNNERS`。
+
+工作流随后验证 RPM 可以离线安装并运行：它构建一个预装 RPM 声明依赖的 [AlmaLinux 8 镜像](../../../.github/docker/linux-offline-smoke.Dockerfile)，在 `--network none` 下用禁用所有仓库的方式安装该包，并在容器内检查 Electron-as-Node、内置的 Node 与 Python 及其 Office 依赖库、pnpm、7 个 Office 技能、`runtime/cli/bin/dsh` 启动器，以及不存在 `app-update.yml`。未签名的 Linux 构建不带更新源，因此安装后的应用不会在启动时检查更新。GUI 渲染与账号登录不在该离线验证范围内。
 
 <a id="directory-and-preparation"></a>
 

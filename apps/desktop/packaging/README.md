@@ -17,6 +17,7 @@ Build Desktop installers locally or through Windows or macOS Actions, choose dep
 - [Configuration and local builds](#configuration-and-local-builds)
 - [Windows Actions packaging](#windows-actions)
 - [macOS self-hosted packaging](#macos-actions)
+- [Linux unsigned packaging](#linux-unsigned-packaging)
 - [Unsigned Windows test installer](#unsigned-windows-test-installer)
 - [Local macOS DMG without release signing](#local-macos-dmg-without-release-signing)
 - [macOS release signing and diagnostics](#macos-release-signing)
@@ -97,7 +98,7 @@ pnpm run package:desktop:mac:x64
 pnpm run package:desktop:win:x64
 ```
 
-The macOS arm64 command requires Apple Silicon. The macOS x64 command runs on Intel macOS or Apple Silicon with Rosetta. The Windows x64 command requires Windows x64. Linux is not a supported Desktop release target.
+The macOS arm64 command requires Apple Silicon. The macOS x64 command runs on Intel macOS or Apple Silicon with Rosetta. The Windows x64 command requires Windows x64. Linux x64 ships unsigned AppImage, DEB, and RPM installers with no update feed; see [Linux unsigned packaging](#linux-unsigned-packaging).
 
 Both release and local unsigned macOS DMGs use LZMA compression (`dmg.format: 'ULMO'`) in [the electron-builder configuration](../scripts/electron-builder-config.mjs). A [build-time patch](../../../patches/app-builder-lib@26.17.0.patch) adds this format to the pinned builder's validation and TypeScript declarations.
 
@@ -206,6 +207,22 @@ Mac packaging reads these tuning fields from `.env.macos`:
 The proxy fields are independent and reject URL credentials, paths, queries and fragments. Empty values preserve inherited networking. An explicit download proxy replaces child-process proxy variables and bypasses local hosts only; it does not change system settings. Company proxy addresses belong in the ignored local file; see internal documentation for addresses.
 
 Apple tooling uses the active macOS network service's HTTP/HTTPS proxies. Configured notarization routing checks proxy reachability, saves that service's settings, enables the proxy around both artifact lanes, and restores the saved settings after both lanes settle. An originally disabled proxy with an empty server and port zero is restored by disabling it; the temporary server and port may remain stored but inactive. Directory-only builds apply it to App notarization after the signed directory build. This temporarily affects other applications and requires permission to change system proxies; PAC, auto-discovery, SOCKS and authenticated proxy configurations must be disabled first. Packaging and recovery acquire the same per-user POSIX file lock before reading recovery data or changing proxies; process exit releases ownership, while the lock file remains in place. The lock loads `@deepseek-ai/node-addon-system/flock` at first use rather than at script start, so `check:package` and the packaging entry load on a checkout that has not built `native/system`; when the host addon binary or the entry's JavaScript is missing at lock time, the loader runs `pnpm run build:native-system` and `pnpm --dir native/system run build:ts` before locking, so recovery works on such a checkout as well. This prevents overlapping proxy transactions across checkouts; other users and network-setting tools must not change these settings concurrently. SIGINT/SIGTERM wait for active work before restoration. After forced termination or a restoration error, stop any remaining notarization processes and run `pnpm --dir apps/desktop run restore:mac-proxy`; the saved record remains until restoration succeeds. Configuration checks validate URL syntax without changing system settings or contacting the proxy.
+
+<a id="linux-unsigned-packaging"></a>
+
+## Linux unsigned packaging
+
+On Linux x64, run the complete unsigned packaging command:
+
+```sh
+pnpm run package:desktop:linux:x64
+```
+
+The command requires a Linux x64 host and has no dotenv or machine preset: it uses `com.deepseek.harness` as the app ID and omits update feeds, mandatory-update policy, and signing. The external tools `rpmbuild`, `dpkg-deb`, `xz`, `fakeroot`, and `readelf` come from the `rpm`, `dpkg`, `xz-utils`, `fakeroot`, and `binutils` packages. `DSH_DESKTOP_LINUX_PACK_CONCURRENCY` selects workspace packing workers and defaults to `4`. It writes AppImage, DEB, and RPM to `.desktop-build/targets/linux-x64/unsigned-artifacts/` — electron-builder names the architecture per format, producing `deepseek-harness-<version>-linux-x86_64-unsigned.AppImage`, `deepseek-harness-<version>-linux-amd64-unsigned.deb`, and `deepseek-harness-<version>-linux-x86_64-unsigned.rpm` — and creates no release completion record, so the upload commands cannot publish it. After electron-builder and the packaged-runtime smoke, every ELF file is scanned with `readelf --version-info`; any binary requiring glibc newer than 2.28 stops the build and names the offending files, because electron-builder resolves libc symbols where it runs and a newer host silently raises the shipped floor. Add `--check` to validate configuration and tools without building, or `--dir` to stop at the unpacked application and skip the scan.
+
+The `Package Desktop · Linux · x64` [manual workflow](../../../.github/workflows/linux-package.yml) runs on `ubuntu-24.04`. It selects a repository branch or `dsh-v*` tag as `source_ref`, resolves `version_mode` (`default` takes `build-number`) and `build_version` like the other platforms, installs the packaging tools and the Electron runtime libraries with `apt`, and retains installers and diagnostics for 14 days without publishing anything. Runs share the `linux-desktop-package` concurrency group and never require `DESKTOP_PUBLISH_RUNNERS`.
+
+The workflow then proves the RPM installs and runs offline: it builds an [AlmaLinux 8 image](../../../.github/docker/linux-offline-smoke.Dockerfile) with the RPM's declared dependencies, installs the package with all repositories disabled under `--network none`, and inside that container checks the Electron-as-Node runtime, the primary runtime's Node and Python with their Office libraries, pnpm, the seven Office skills, the `runtime/cli/bin/dsh` launcher, and the absence of `app-update.yml`. Unsigned Linux builds carry no update feed, so the installed application performs no startup update check. GUI rendering and account sign-in are outside this offline verification.
 
 <a id="directory-and-preparation"></a>
 

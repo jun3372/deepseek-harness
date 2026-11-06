@@ -1,7 +1,12 @@
 /** Validate the assembled application, including native Office conversion outside ASAR. */
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
-import { desktopArtifactOutput, resolveDesktopBuildTarget, resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+import {
+  desktopArtifactOutput,
+  desktopUnpackedApplicationDirectory,
+  resolveDesktopBuildTarget,
+  resolveDesktopTargetBuildPaths,
+} from './desktop-build-paths.mjs'
 import { readDesktopRuntime, verifyDesktopRuntime } from '../src/runtime-tree.ts'
 import { verifyWindowsCode } from './windows-runtime-signature.mjs'
 import { smokePreparedRuntime } from './smoke-prepared-runtime.ts'
@@ -11,11 +16,14 @@ const paths = resolveDesktopTargetBuildPaths()
 const { values } = parseArgs({ options: { unsigned: { type: 'boolean', default: false }, 'skip-notarization': { type: 'boolean', default: false } }, allowPositionals: false })
 const target = resolveDesktopBuildTarget()
 const windows = target === 'win-x64'
+// Linux and Windows keep resources beside the executable; macOS nests them under Contents.
+const flatLayout = !target.startsWith('mac-')
 const artifacts = desktopArtifactOutput(paths, { unsigned: values.unsigned, skipNotarization: values['skip-notarization'] }).directory
-const application = windows ? join(artifacts, 'win-unpacked')
-  : join(artifacts, target === 'mac-arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app', 'Contents')
-const resources = join(application, windows ? 'resources' : 'Resources')
-const executable = windows ? join(application, 'DeepSeek Harness.exe') : join(application, 'MacOS', 'DeepSeek Harness')
+const application = join(artifacts, desktopUnpackedApplicationDirectory(target), ...(flatLayout ? [] : ['DeepSeek Harness.app', 'Contents']))
+const resources = join(application, flatLayout ? 'resources' : 'Resources')
+const executable = flatLayout
+  ? join(application, windows ? 'DeepSeek Harness.exe' : 'deepseek-harness')
+  : join(application, 'MacOS', 'DeepSeek Harness')
 const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(paths.dsh).release.version,
   resolveDesktopPackageTarget(target))
 if (windows && !values.unsigned) await verifyWindowsCode(application)

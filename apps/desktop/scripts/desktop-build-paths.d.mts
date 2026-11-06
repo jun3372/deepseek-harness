@@ -1,5 +1,14 @@
 import type { DesktopAutoUpdateTarget } from './desktop-auto-update-environment.mjs'
 
+/** Directory name of one Desktop build target, including targets without a release feed. */
+export type DesktopBuildTarget = 'mac-arm64' | 'mac-x64' | 'win-x64' | 'linux-arm64' | 'linux-x64'
+
+/** Platform and architecture of the payload one build target prepares. */
+export interface DesktopTargetPlatform {
+  readonly platform: 'darwin' | 'win32' | 'linux'
+  readonly arch: 'arm64' | 'x64'
+}
+
 /** Mutable target directories plus shared download and package caches. */
 export interface DesktopTargetBuildPaths {
   readonly root: string
@@ -29,7 +38,7 @@ export function resolveDesktopBuildTarget(
   env?: NodeJS.ProcessEnv,
   hostPlatform?: NodeJS.Platform,
   hostArch?: string,
-): DesktopAutoUpdateTarget
+): DesktopBuildTarget
 
 /**
  * Return the mutable preparation and artifact directories owned by one release target.
@@ -37,18 +46,40 @@ export function resolveDesktopBuildTarget(
  * @param environment - Packaging environment with an optional absolute cache directory.
  * @returns Target paths plus shared download and package caches.
  */
-export function desktopTargetBuildPaths(target: DesktopAutoUpdateTarget, environment?: NodeJS.ProcessEnv): DesktopTargetBuildPaths
+export function desktopTargetBuildPaths(target: DesktopBuildTarget, environment?: NodeJS.ProcessEnv): DesktopTargetBuildPaths
 
 /**
  * Return the platform and architecture of the payload one release target prepares.
  * Windows is prepared as x64 only, so this differs from the build host on an arm64 Windows machine.
- * @param target - Supported Desktop target name.
+ * @param target - Supported release target name.
  * @returns Platform and architecture of the prepared payload.
  */
 export function desktopTargetPlatform(target: DesktopAutoUpdateTarget): {
   readonly platform: 'darwin' | 'win32'
   readonly arch: 'arm64' | 'x64'
 }
+
+/**
+ * Return the platform and architecture of the payload one build target prepares.
+ * @param target - Supported Desktop target name.
+ * @returns Platform and architecture of the prepared payload.
+ */
+export function desktopTargetPlatform(target: DesktopBuildTarget): DesktopTargetPlatform
+
+/**
+ * Name the unpacked application directory electron-builder writes for one target.
+ * @param target - Supported Desktop target name.
+ * @returns Directory name inside the target's artifact directory.
+ */
+export function desktopUnpackedApplicationDirectory(target: DesktopBuildTarget): string
+
+/**
+ * Locate the Electron executable inside an extracted or unpacked Electron distribution.
+ * @param directory - Extracted Electron distribution or unpacked application root.
+ * @param platform - Target platform the distribution was prepared for.
+ * @returns Absolute executable path.
+ */
+export function desktopElectronExecutable(directory: string, platform: NodeJS.Platform): string
 
 /**
  * Resolve the paths owned by the target selected in a packaging environment.

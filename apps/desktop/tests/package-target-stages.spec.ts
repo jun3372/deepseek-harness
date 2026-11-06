@@ -422,3 +422,41 @@ it.each([undefined, '7'])('applies file-owned compression only to the final nota
   expect(dmg?.[3].env.ELECTRON_BUILDER_COMPRESSION_LEVEL).toBe('9')
   expect(writeFileSync).toHaveBeenCalledOnce()
 })
+
+it.each([undefined, '2'])('packages unsigned Linux installers and gates their glibc floor (workers=%s)', async (workers) => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['linux-x64', '--unsigned'], 'linux', 'x64'), {
+    ...environment, ...(workers === undefined ? {} : { DSH_DESKTOP_LINUX_PACK_CONCURRENCY: workers }),
+  }, run)
+  // Unsigned Linux packing replaces the dsh release pack with the local package packer.
+  const packs = stages.filter(stage => stage.includes('--concurrency'))
+  expect(packs).toHaveLength(2)
+  expect(stages.some(stage => stage.startsWith('exec tsx apps/desktop/scripts/pack-local-packages.ts'))).toBe(true)
+  expect(stages.some(stage => stage.startsWith('run release:pack --family vendor'))).toBe(true)
+  expect(stages).toContain('exec electron-builder --config electron-builder.config.mjs --linux --x64 --publish never')
+  expect(stages.slice(-3)).toEqual([
+    'exec electron-builder --config electron-builder.config.mjs --linux --x64 --publish never',
+    'exec tsx scripts/smoke-packaged-runtime.ts --unsigned',
+    'exec tsx scripts/verify-linux-glibc-floor.ts',
+  ])
+  // Linux artifacts reach no release feed, so a finished build records nothing for an upload to read.
+  expect(writeFileSync).not.toHaveBeenCalled()
+})
+
+it('scans an unpacked Linux directory application without writing a release record', async () => {
+  const { run, stages } = supervisor()
+  await packageTarget(parseDesktopPackageInvocation(['linux-x64', '--unsigned', '--dir'], 'linux', 'x64'), environment, run)
+  expect(stages).toContain('exec electron-builder --config electron-builder.config.mjs --linux --x64 --publish never --dir')
+  expect(stages.at(-1)).toBe('exec tsx scripts/smoke-packaged-runtime.ts --unsigned')
+  expect(stages).not.toContain('exec tsx scripts/verify-linux-glibc-floor.ts')
+  expect(writeFileSync).not.toHaveBeenCalled()
+})
+
+it('stops Linux packaging when the glibc floor gate fails', async () => {
+  const failure = 'exec tsx scripts/verify-linux-glibc-floor.ts'
+  const { run, stages } = supervisor(failure)
+  await expect(packageTarget(parseDesktopPackageInvocation(['linux-x64', '--unsigned'], 'linux', 'x64'), environment, run))
+    .rejects.toThrow('stage refused')
+  expect(stages.at(-1)).toBe(failure)
+  expect(writeFileSync).not.toHaveBeenCalled()
+})

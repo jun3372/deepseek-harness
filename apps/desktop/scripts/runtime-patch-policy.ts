@@ -8,6 +8,7 @@ export type DesktopRuntimePatch =
 
 /** Every workspace patch requires an explicit Desktop decision; runtime-only entries may add or replace a patch. */
 export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatch>> = {
+  '@deepseek-ai/libreoffice-kit@0.1.5': { scope: 'shared', reason: 'Packaged Office conversion needs the asar-safe installed-engine probe.' },
   '@botiverse/oar@0.67.0': { scope: 'workspace-only', reason: 'Patched OAR adapters are embedded in the provider bundle.' },
   '@earendil-works/pi-ai@1.3.0': { scope: 'shared', reason: 'Runtime providers need the streamed argument parsing fix.' },
   '@electron/osx-sign@1.3.3': { scope: 'workspace-only', reason: 'Signing executes on the build host.' },
@@ -26,4 +27,6 @@ export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatc
 export const DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES: Readonly<Record<string, string>> = {
   // The provider declares ^1.3.0; its patch is qualified against 1.3.0.
   '@earendil-works/pi-ai@^1.3.0': '1.3.0',
+  // sherpa-onnx prebuilds from 1.13.5 require glibc 2.32; 1.13.4 keeps the RHEL 8 glibc floor.
+  'sherpa-onnx-linux-x64': '1.13.4',
 }

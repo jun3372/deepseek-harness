@@ -66,7 +66,10 @@ export function createElectronBuilderConfig(
   if (skipNotarization && (unsigned || resolvedPlatform !== 'darwin')) throw new Error('Skipping notarization requires a signed macOS build')
   const packagesMacOS = targetPlatform === 'darwin' || (targetPlatform === undefined && hostPlatform === 'darwin')
   const packagesWindows = resolvedPlatform === 'win32'
-  const policy = packagesMacOS && unsigned ? undefined : resolveDesktopPolicyEnvironment(env)
+  const packagesLinux = resolvedPlatform === 'linux'
+  if (packagesLinux && !unsigned) throw new Error('desktop package: Linux packaging is unsigned only')
+  // Linux builds have no update feed to police, so they read no mandatory update policy.
+  const policy = packagesLinux || (packagesMacOS && unsigned) ? undefined : resolveDesktopPolicyEnvironment(env)
   if (resolvedPlatform === 'win32') installWindowsDirectoryInstaller()
   const macOSSigning = packagesMacOS && !unsigned ? resolveMacOSSigningEnvironment(env) : undefined
   if (packagesMacOS && !unsigned && !skipNotarization) resolveMacOSNotarizationEnvironment(env)
@@ -255,8 +258,21 @@ export function createElectronBuilderConfig(
       target: ['nsis'],
     },
     linux: {
+      icon: fileURLToPath(new URL('../resources/icon.png', import.meta.url)),
+      executableName: 'deepseek-harness',
       category: 'Development',
-      target: ['AppImage'],
+      maintainer: 'Hangzhou DeepSeek Artificial Intelligence Co., Ltd.',
+      target: ['AppImage', 'deb', 'rpm'],
+    },
+    // FPM names the system package from these sections: RPM rejects the spaced display name.
+    deb: { packageName: 'deepseek-harness' },
+    rpm: {
+      packageName: 'deepseek-harness',
+      // electron-builder's default RPM requirements plus the ALSA and GBM libraries Electron links.
+      depends: ['gtk3', 'libnotify', 'nss', 'libXScrnSaver', '(libXtst or libXtst6)', 'xdg-utils', 'at-spi2-core',
+        '(libuuid or libuuid1)', 'alsa-lib', 'mesa-libgbm'],
+      // rpmbuild otherwise writes shared /usr/lib/.build-id links that collide with other packages on RHEL hosts.
+      fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
     },
     nsis: {
       uninstallDisplayName: '${productName}',
