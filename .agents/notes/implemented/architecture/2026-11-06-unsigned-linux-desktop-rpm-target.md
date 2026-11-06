@@ -24,6 +24,8 @@ Linux Office conversion uses the kit's WASM engine, because no native Linux engi
 
 Linux installers are unsigned workflow artifacts with a 14-day retention window, so no update feed, release store entry, or publication route exists for them. Every rebuild re-derives the runtime lockfile and scans the assembled binaries, so an Electron upgrade that raises the floor fails packaging instead of shipping. Adding a signed or arm64 Linux release requires its own runner, credentials, and qualification and is not part of this decision.
 
+The gate identified exactly one binary above the floor: `sherpa-onnx-linux-x64`, whose 1.13.5 and later prebuilds require glibc 2.32. The Desktop runtime pins that package to 1.13.4, whose newest requirement is glibc 2.14, through the reviewed dependency overrides rather than excluding the experimental speech-to-text engine or weakening the floor.
+
 ## Alternatives considered
 
 Publishing only an AppImage would avoid the DEB and RPM toolchain but would not give Linux users a system-integrated package with the dependency declarations this workflow verifies offline. Signing Linux artifacts or adding a generic update feed was rejected because no Linux signing identity, feed bucket, or retention store is owned today. Raising the glibc floor to match the current build runner was rejected because it would silently drop every distribution older than that runner.

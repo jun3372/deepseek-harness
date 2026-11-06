@@ -49,6 +49,7 @@ it('classifies the current workspace and shares only runtime patch bytes', () =>
   const settings = yaml.load(readFileSync(join(project, 'pnpm-workspace.yaml'), 'utf8')) as { overrides: Record<string, string> }
   expect(settings.overrides['@earendil-works/pi-ai']).toBeUndefined()
   expect(settings.overrides['@earendil-works/pi-ai@^1.3.0']).toBe('1.3.0')
+  expect(settings.overrides['sherpa-onnx-linux-x64']).toBe('1.13.4')
   expect(readFileSync(join(repository, 'pnpm-lock.yaml'))).toEqual(before)
   writeFileSync(join(project, 'pnpm-lock.yaml'), yaml.dump({
     patchedDependencies: Object.fromEntries(plan.patches.map(entry => [entry.spec, entry.hash])),

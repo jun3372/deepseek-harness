@@ -27,4 +27,6 @@ export const DESKTOP_RUNTIME_PATCHES: Readonly<Record<string, DesktopRuntimePatc
 export const DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES: Readonly<Record<string, string>> = {
   // The provider declares ^1.3.0; its patch is qualified against 1.3.0.
   '@earendil-works/pi-ai@^1.3.0': '1.3.0',
+  // sherpa-onnx prebuilds from 1.13.5 require glibc 2.32; 1.13.4 keeps the RHEL 8 glibc floor.
+  'sherpa-onnx-linux-x64': '1.13.4',
 }
