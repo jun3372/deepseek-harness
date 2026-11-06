@@ -1,0 +1,22 @@
+# Bilingual-pair consistency record for 2026-11-06-unsigned-linux-desktop-rpm-target.md (docs/i18n/README.md): per heading
+# section, a hash of its English and Chinese blocks outside code blocks and generated regions.
+# After editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-11-06-unsigned-linux-desktop-rpm-target.md
+/agent-note-unsigned-linux-desktop-installers-with-a-glibc-2-28-floor:
+  en: 215c60adab01aabe
+  zh: e1181112c7865a84
+/agent-note-unsigned-linux-desktop-installers-with-a-glibc-2-28-floor/problem:
+  en: 883e8d0e413d7959
+  zh: c03d69d9876655ca
+/agent-note-unsigned-linux-desktop-installers-with-a-glibc-2-28-floor/decision:
+  en: c73b4411470e3b7e
+  zh: a9f323bf17dccbde
+/agent-note-unsigned-linux-desktop-installers-with-a-glibc-2-28-floor/consequences:
+  en: 8ceb81ddcc4e1b01
+  zh: 91074f4e89a85fd2
+/agent-note-unsigned-linux-desktop-installers-with-a-glibc-2-28-floor/alternatives-considered:
+  en: 492b6bca779a5c93
+  zh: 9ea224ac9a899363
+/agent-note-unsigned-linux-desktop-installers-with-a-glibc-2-28-floor/verification:
+  en: 5e4cde86419ef3ab
+  zh: 7a7baa4d98d2a847

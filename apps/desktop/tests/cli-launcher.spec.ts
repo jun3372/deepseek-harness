@@ -8,7 +8,9 @@ import { dirname, join, relative } from 'node:path'
 import { expect, it, onTestFinished } from 'vitest'
 import { prepareDesktopCli } from '../scripts/prepare-cli.ts'
 
-function fixture() {
+type FixturePlatform = 'darwin' | 'win32' | 'linux'
+
+function fixture(platform: FixturePlatform = process.platform === 'win32' ? 'win32' : 'darwin') {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'dsh-cli-launcher-')))
   const children: ChildProcessWithoutNullStreams[] = []
   const exits: Promise<unknown>[] = []
@@ -20,11 +22,11 @@ function fixture() {
     await rm(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
   })
   const application = join(root, 'Application 中文 with spaces.app')
-  const platform = process.platform === 'win32' ? 'win32' : 'darwin'
   const resources = join(application, ...platform === 'darwin' ? ['Contents', 'Resources'] : ['resources'])
   const cli = join(resources, 'runtime', 'cli')
   prepareDesktopCli(cli, platform)
-  const electron = join(application, ...platform === 'darwin' ? ['Contents', 'MacOS', 'DeepSeek Harness'] : ['DeepSeek Harness.exe'])
+  const electron = join(application, ...platform === 'darwin' ? ['Contents', 'MacOS', 'DeepSeek Harness']
+    : platform === 'win32' ? ['DeepSeek Harness.exe'] : ['deepseek-harness'])
   mkdirSync(dirname(electron), { recursive: true })
   if (platform === 'win32') copyFileSync(process.execPath, electron)
   else symlinkSync(process.execPath, electron)
@@ -81,6 +83,15 @@ it.skipIf(process.platform === 'win32')('resolves chained command symlinks witho
   symlinkSync(link, command)
   const args = ['quote"inside', 'trailing\\', '%PATH%', '$HOME', '`literal`', '']
   const run = f.start(args, command)
+  run.child.stdin.end()
+  expect(await run.closed, run.stderr()).toBe(23)
+  expect(JSON.parse(run.stdout())).toMatchObject({ args, cwd: f.root, nodeMode: '1' })
+})
+
+it.skipIf(process.platform === 'win32')('runs the launcher from the Linux bundle layout without Contents', async () => {
+  const f = fixture('linux')
+  const args = ['plugin', 'list', '']
+  const run = f.start(args)
   run.child.stdin.end()
   expect(await run.closed, run.stderr()).toBe(23)
   expect(JSON.parse(run.stdout())).toMatchObject({ args, cwd: f.root, nodeMode: '1' })

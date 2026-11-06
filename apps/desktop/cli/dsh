@@ -11,4 +11,10 @@ while [ -L "$launcher" ]; do
   esac
 done
 resources=$(CDPATH= cd -- "$(dirname -- "$launcher")/../../.." && pwd -P)
-ELECTRON_RUN_AS_NODE=1 exec "$resources/../MacOS/DeepSeek Harness" --expose-internals "$resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js" "$@"
+# macOS keeps the executable beside Contents/Resources; every other bundle layout uses the app root.
+if [ -x "$resources/../MacOS/DeepSeek Harness" ]; then
+  executable="$resources/../MacOS/DeepSeek Harness"
+else
+  executable="$resources/../deepseek-harness"
+fi
+ELECTRON_RUN_AS_NODE=1 exec "$executable" --expose-internals "$resources/app.asar/dsh/node_modules/@deepseek-ai/dsh-desktop-host/lib/cli.js" "$@"

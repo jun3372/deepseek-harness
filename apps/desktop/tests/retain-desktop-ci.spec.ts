@@ -124,3 +124,15 @@ it('rejects missing or ambiguous archival routing before packaging starts', () =
     dedicated: { label: 'dsh-shared', target: 'mac-arm64' }, other: { label: 'dsh-shared', target: 'mac-arm64' },
   }) })).toThrow('unique artifact routing label')
 })
+
+it('rejects Linux targets before any retention route is resolved', () => {
+  // Linux installers stay inside the workflow run; they never enter the release store.
+  for (const [platform, arch] of [['linux', 'x64'], ['linux', 'arm64']] as const) {
+    const env = {
+      RUNNER_NAME: 'dedicated', DSH_DESKTOP_TARGET_PLATFORM: platform, DSH_DESKTOP_TARGET_ARCH: arch,
+      DSH_PACKAGING_CONFIG_DIR: '/fixture/packaging', PACKAGE_VERSION: '1.0.0', GITHUB_REPOSITORY: 'fixture/repo',
+    }
+    expect(() => resolveDesktopRetentionRunner(env))
+      .toThrow('desktop retention: Linux artifacts are unsigned workflow artifacts with no release feed')
+  }
+})

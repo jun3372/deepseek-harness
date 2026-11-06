@@ -38,6 +38,13 @@ export interface DesktopElectronBuilderConfig {
     readonly sign: boolean
     readonly writeUpdateInfo: boolean
   }
+  readonly linux: {
+    readonly icon: string
+    readonly executableName: 'deepseek-harness'
+    readonly category: 'Development'
+    readonly maintainer: string
+    readonly target: readonly ['AppImage', 'deb', 'rpm']
+  }
   readonly win: {
     readonly forceCodeSigning: boolean
     readonly signtoolOptions: {

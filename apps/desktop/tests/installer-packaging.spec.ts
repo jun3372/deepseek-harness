@@ -1,6 +1,7 @@
 import { readInstallerLocales } from '../scripts/installer-locales.mjs'
 import { tmpdir } from 'node:os'
 import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { Arch, Platform } from 'electron-builder'
 import { AppInfo, Packager } from 'app-builder-lib'
 import { expandMacro } from 'app-builder-lib/out/util/macroExpander.js'
@@ -100,6 +101,36 @@ describe('installer preparation preserves application dependencies', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'win32', 'x64')
     expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+  })
+
+  it('packages unsigned Linux installers without an update feed or release policy', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    const config = createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.installer',
+      // A deliberately unusable policy proves Linux packaging never reads one.
+      DSH_DESKTOP_AUTO_UPDATE_ENV: 'production',
+      DSH_DESKTOP_TARGET_PLATFORM: 'linux',
+      DSH_DESKTOP_TARGET_ARCH: 'x64',
+      DSH_DESKTOP_UNSIGNED: '1',
+    }, 'linux', 'x64')
+    expect(config.linux).toMatchObject({
+      executableName: 'deepseek-harness',
+      target: ['AppImage', 'deb', 'rpm'],
+      maintainer: 'Hangzhou DeepSeek Artificial Intelligence Co., Ltd.',
+    })
+    expect(readFileSync(config.linux.icon)).toEqual(readFileSync(new URL('../resources/icon.png', import.meta.url)))
+    expect(config.publish).toBeNull()
+    expect(config.artifactName).toBe('deepseek-harness-${version}-${os}-${arch}-unsigned.${ext}')
+    expect(config.directories.output).toContain(join('targets', 'linux-x64', 'unsigned-artifacts'))
+  })
+
+  it('rejects signed Linux packaging', async () => {
+    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
+    expect(() => createElectronBuilderConfig({
+      DSH_DESKTOP_APP_ID: 'com.example.installer',
+      DSH_DESKTOP_TARGET_PLATFORM: 'linux',
+      DSH_DESKTOP_TARGET_ARCH: 'x64',
+    }, 'linux', 'x64')).toThrow('desktop package: Linux packaging is unsigned only')
   })
 
   it('packages every preload entry point the shell loads', async () => {

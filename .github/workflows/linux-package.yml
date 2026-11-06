@@ -1,0 +1,137 @@
+name: Package Desktop · Linux · x64
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: '打包源码：支持仓库内分支或 dsh-v* tag；源码须包含 Linux 打包适配脚本'
+        type: string
+        default: master
+        required: true
+      version_mode:
+        description: '版本模式：default 取 build-number；follow-dsh 跟随 dsh 包版本号；build-number 自动追加构建编号；manual 手填'
+        type: choice
+        options: [default, follow-dsh, build-number, manual]
+        default: default
+        required: true
+      build_version:
+        description: '手动版本号：仅 manual 时填写完整版本；须为产品原版本或受支持的预发布后缀'
+        type: string
+        default: ''
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: linux-desktop-package
+  cancel-in-progress: false
+
+jobs:
+  package:
+    outputs:
+      version: ${{ steps.settings.outputs.version }}
+      target: ${{ steps.settings.outputs.target }}
+      mode: ${{ steps.settings.outputs.mode }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    defaults:
+      run:
+        shell: bash
+    env:
+      PACKAGE_SOURCE_REF: ${{ inputs.source_ref }}
+      PACKAGE_VERSION_MODE: ${{ inputs.version_mode }}
+      PACKAGE_ARCH: x64
+      DSH_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v7.0.1
+        id: checkout
+        with:
+          ref: ${{ inputs.source_ref }}
+          persist-credentials: false
+          clean: true
+      - name: Validate selected source and adapter support
+        run: >-
+          node -e "const fs=require('node:fs'); const ref=process.env.PACKAGE_SOURCE_REF;
+          const cp=require('node:child_process');
+          const tag=/^dsh-v[0-9][0-9A-Za-z.-]*$/.test(ref);
+          if(tag) {
+          const v=JSON.parse(fs.readFileSync('package.json','utf8')).version;
+          if(ref!=='dsh-v'+v) throw Error('Source tag must match product version');
+          const tagged=cp.execFileSync('git',['rev-parse','--verify','refs/tags/'+ref+'^{commit}'],{encoding:'utf8'}).trim();
+          const head=cp.execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
+          if(tagged!==head) throw Error('Checkout does not match source tag');
+          } else {
+          const branch=cp.execFileSync('git',['rev-parse','--abbrev-ref','HEAD'],{encoding:'utf8'}).trim();
+          if(branch==='HEAD' || branch!==ref || ref.startsWith('refs/')) throw Error('Select a branch in this repository, not a SHA or PR ref');
+          }
+          if(!fs.readFileSync('apps/desktop/scripts/prepare-linux-ci.mjs','utf8').includes('PACKAGE_ARCH')) throw Error('Source lacks Desktop Linux CI support; select a newer revision');
+          if(!fs.readFileSync('apps/desktop/scripts/desktop-ci-version.mjs','utf8').includes('PACKAGE_VERSION_MODE')) throw Error('Source lacks Desktop channel/version CI support; select a newer release');"
+      - uses: pnpm/action-setup@v5.0.0
+        with:
+          package_json_file: package.json
+          dest: ${{ runner.temp }}/setup-pnpm-${{ github.run_id }}-${{ github.run_attempt }}
+      - uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '24'
+          cache: pnpm
+      - name: Install packaging and Electron runtime libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends rpm xz-utils dpkg fakeroot file binutils \
+            libasound2t64 libatk-bridge2.0-0 libatspi2.0-0 libcairo2 libcups2 libdrm2 libgbm1 libgtk-3-0 \
+            libnss3 libpango-1.0-0 libsecret-1-0 libx11-xcb1 libxcb-dri3-0 libxcomposite1 libxdamage1 \
+            libxfixes3 libxkbcommon0 libxrandr2 libxss1
+      - name: Install locked dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Resolve build version
+        id: settings
+        env:
+          PACKAGE_BUILD_VERSION: ${{ inputs.build_version }}
+        run: node apps/desktop/scripts/prepare-linux-ci.mjs
+      - name: Check packaging configuration and toolchain
+        env:
+          PACKAGE_VERSION: ${{ steps.settings.outputs.version }}
+        run: pnpm run package:desktop:linux:x64 --check --build-version "$PACKAGE_VERSION"
+      - name: Build unsigned Linux installers
+        env:
+          PACKAGE_VERSION: ${{ steps.settings.outputs.version }}
+        run: pnpm run package:desktop:linux:x64 --build-version "$PACKAGE_VERSION"
+      - name: Verify offline RPM install and bundled runtimes (glibc 2.28)
+        run: |
+          docker build -t dsh-offline-smoke -f .github/docker/linux-offline-smoke.Dockerfile .
+          docker run --rm --network none -e HOME=/tmp \
+            -v "$PWD/apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts:/pkg:ro" \
+            dsh-offline-smoke bash -euo pipefail -c '
+              dnf install -y --disablerepo="*" /pkg/*.rpm
+              app=$(dirname "$(find /opt -maxdepth 2 -type d -name resources | head -n1)")
+              test -x "$app/deepseek-harness"
+              ELECTRON_RUN_AS_NODE=1 "$app/deepseek-harness" -p "process.versions.node"
+              node_bin="$app/resources/runtime/primary-runtime/dependencies/node/bin/node"
+              python_bin="$app/resources/runtime/primary-runtime/dependencies/python/bin/python3"
+              test "$("$node_bin" --version)" = "v24.21.0"
+              "$python_bin" -c "import numpy, pandas, openpyxl, docx, pptx; print(\"python ok\")"
+              "$node_bin" "$app/resources/runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs" --version
+              test "$(ls -d "$app/resources/runtime/office-skills"/*/SKILL.md | wc -l)" -eq 7
+              test ! -e "$app/resources/app-update.yml"
+              "$app/resources/runtime/cli/bin/dsh" --version
+            '
+      - name: Retain packaging diagnostics
+        continue-on-error: true
+        if: always() && steps.checkout.outcome == 'success'
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: linux-package-logs-${{ github.run_id }}-${{ github.run_attempt }}
+          include-hidden-files: true
+          path: apps/desktop/.desktop-build/packaging-runs/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Retain unsigned installers
+        if: success()
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ${{ steps.settings.outputs.target }}-${{ steps.settings.outputs.mode }}-${{ steps.settings.outputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: apps/desktop/.desktop-build/targets/linux-x64/unsigned-artifacts/*
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

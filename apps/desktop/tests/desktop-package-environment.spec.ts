@@ -2,7 +2,8 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { loadDesktopPackageEnvironment, localMacOSPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
+import { loadDesktopPackageEnvironment, localUnsignedPackageEnvironment, validateDesktopPackageEnvironment } from '../scripts/desktop-package-environment.mjs'
+import { resolveLinuxPackageSettings } from '../scripts/linux-package-settings.mjs'
 import { resolveWindowsPackageSettings } from '../scripts/windows-package-settings.mjs'
 
 const WINDOWS = { platform: 'win32', arch: 'x64' } as const
@@ -111,7 +112,7 @@ describe('Desktop local packaging configuration', () => {
       DSH_DESKTOP_MACOS_SIGNING_IDENTITY: 'Release identity', CSC_LINK: 'missing.p12',
       APPLE_API_KEY: 'missing.p8', DOWNLOAD_PROD_COS_SECRET_KEY: 'unused-secret',
     }
-    const local = localMacOSPackageEnvironment(parent)
+    const local = localUnsignedPackageEnvironment(parent)
     expect(local).toEqual({
       PATH: parent.PATH, HTTPS_PROXY: parent.HTTPS_PROXY, DSH_DESKTOP_NPM_REGISTRY: parent.DSH_DESKTOP_NPM_REGISTRY,
       DSH_DESKTOP_APP_ID: 'com.deepseek.harness', DSH_DESKTOP_UNSIGNED: '1',
@@ -257,11 +258,28 @@ describe('Desktop local packaging configuration', () => {
   })
 
   it('accepts unsigned macOS configuration without Apple or update policy settings while keeping release validation', () => {
-    const local = localMacOSPackageEnvironment({})
+    const local = localUnsignedPackageEnvironment({})
     expect(() => { validateDesktopPackageEnvironment(local, MACOS, { unsigned: true }) }).not.toThrow()
     expect(() => { validateDesktopPackageEnvironment(local, MACOS) })
       .toThrow('DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN')
     expect(() => { validateDesktopPackageEnvironment(RELEASE, MACOS) }).toThrow('DSH_DESKTOP_MACOS_SIGNING_IDENTITY')
+  })
+
+  it('validates Linux tuning without reading release files, update policy, or signing credentials', () => {
+    const LINUX = { platform: 'linux', arch: 'x64' } as const
+    const local = localUnsignedPackageEnvironment({ DSH_DESKTOP_AUTO_UPDATE_ENV: 'production', CSC_LINK: 'unused.p12' })
+    expect(() => { validateDesktopPackageEnvironment(local, LINUX, { unsigned: true }) }).not.toThrow()
+    // Linux builds have no feed and no signing, so an unsigned-only target rejects release modes outright.
+    expect(() => { validateDesktopPackageEnvironment(local, LINUX) }).toThrow('desktop package: Linux packaging is unsigned only')
+    expect(() => { validateDesktopPackageEnvironment(local, LINUX, { prepareOnly: true }) }).toThrow('Linux packaging is unsigned only')
+    expect(() => {
+      validateDesktopPackageEnvironment({ ...local, DSH_DESKTOP_LINUX_PACK_CONCURRENCY: '0' }, LINUX, { unsigned: true })
+    }).toThrow('DSH_DESKTOP_LINUX_PACK_CONCURRENCY')
+    expect(resolveLinuxPackageSettings(local).packConcurrency).toBe(4)
+    // Releases in the update policy are not consulted, so a broken one cannot fail a Linux build.
+    expect(() => {
+      validateDesktopPackageEnvironment({ ...local, DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: 'invalid-json' }, LINUX, { unsigned: true })
+    }).not.toThrow()
   })
 
   it('accepts one local npm registry mirror and rejects other registry forms', () => {
