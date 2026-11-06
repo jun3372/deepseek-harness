@@ -26,6 +26,8 @@ Linux 安装包是保留 14 天的未签名工作流 artifact，因此没有更�
 
 只发布 AppImage 可以省掉 DEB 与 RPM 工具链，但无法给 Linux 用户提供带依赖声明、并能被本工作流离线验证的系统级安装包。为 Linux 产物签名或增加通用更新源被否决，因为目前没有对应的签名身份、feed 存储桶或留存存储。把 glibc 下限提高到当前构建 runner 的水平同样被否决，因为它会静默放弃所有比该 runner 更旧的发行版。
 
+FPM 类目标需要其他平台用不到的元数据：应用声明项目 `homepage`，`deb` 与 `rpm` 把系统包名设为 `deepseek-harness` 而不是带空格的显示名，RPM 传入 `_build_id_links none`，避免 rpmbuild 写入与其他软件包冲突的共享 `/usr/lib/.build-id` 链接。RPM 依赖为 electron-builder 默认集合加上 Electron 实际链接的 ALSA 与 GBM 库，离线容器预装的正是这套依赖。
+
 ## 验证
 
 单元测试覆盖目标与宿主校验、仅未签名的调用规则、Linux 构建器配置、打包并发、不生成发布记录，以及门禁的报告解析、版本比较、缺少 `readelf` 的报错和超标文件报错（使用桩 `readelf`）。端到端打包与离线 RPM 安装由工作流执行；打包指南的 Linux 章节负责命令与适用范围。

@@ -266,7 +266,14 @@ export function createElectronBuilderConfig(
     },
     // FPM names the system package from these sections: RPM rejects the spaced display name.
     deb: { packageName: 'deepseek-harness' },
-    rpm: { packageName: 'deepseek-harness' },
+    rpm: {
+      packageName: 'deepseek-harness',
+      // electron-builder's default RPM requirements plus the ALSA and GBM libraries Electron links.
+      depends: ['gtk3', 'libnotify', 'nss', 'libXScrnSaver', '(libXtst or libXtst6)', 'xdg-utils', 'at-spi2-core',
+        '(libuuid or libuuid1)', 'alsa-lib', 'mesa-libgbm'],
+      // rpmbuild otherwise writes shared /usr/lib/.build-id links that collide with other packages on RHEL hosts.
+      fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
+    },
     nsis: {
       uninstallDisplayName: '${productName}',
       installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),

@@ -26,6 +26,8 @@ Linux installers are unsigned workflow artifacts with a 14-day retention window,
 
 Publishing only an AppImage would avoid the DEB and RPM toolchain but would not give Linux users a system-integrated package with the dependency declarations this workflow verifies offline. Signing Linux artifacts or adding a generic update feed was rejected because no Linux signing identity, feed bucket, or retention store is owned today. Raising the glibc floor to match the current build runner was rejected because it would silently drop every distribution older than that runner.
 
+The FPM-based targets carry metadata the other platforms never needed: the application declares a project `homepage`, `deb` and `rpm` name the system package `deepseek-harness` instead of the spaced display name, and the RPM passes `_build_id_links none` so rpmbuild does not write shared `/usr/lib/.build-id` links that collide with other packages during installation. The RPM requirements are electron-builder's defaults plus the ALSA and GBM libraries Electron links, which is what the offline container preinstalls.
+
 ## Verification
 
 Unit tests cover target and host validation, the unsigned-only invocation rule, Linux builder configuration, packing concurrency, the absence of a release record, and the gate's report parsing, version comparison, missing-`readelf` report, and offending-file report against a stub `readelf`. The workflow performs the end-to-end packaging and offline RPM installation; the packaging guide's Linux section owns the commands and limits.

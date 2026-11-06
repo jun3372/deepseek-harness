@@ -218,11 +218,11 @@ Apple 工具使用 macOS 当前活动网络服务的 HTTP/HTTPS 代理。配置�
 pnpm run package:desktop:linux:x64
 ```
 
-该命令要求 Linux x64 宿主，且不使用 dotenv 或机器预设：应用 ID 使用 `com.deepseek.harness`，不包含更新源、强制更新策略与签名。外部工具 `rpmbuild`、`dpkg-deb`、`xz`、`fakeroot`、`readelf` 分别来自 `rpm`、`dpkg`、`xz-utils`、`fakeroot`、`binutils` 软件包。`DSH_DESKTOP_LINUX_PACK_CONCURRENCY` 选择工作区打包的并发数，默认为 `4`。命令把 AppImage、DEB、RPM 写入 `.desktop-build/targets/linux-x64/unsigned-artifacts/`，文件名为 `deepseek-harness-<version>-linux-x64-unsigned.<ext>`，不生成发布完成记录，因此上传命令无法发布这些产物。在 electron-builder 与打包后运行时冒烟之后，每个 ELF 文件都会用 `readelf --version-info` 扫描；任何要求的 glibc 高于 2.28 的二进制都会让构建失败并列出该文件，因为 electron-builder 在构建机上解析 libc 符号，较新的宿主会悄悄抬高产物的 glibc 下限。加 `--check` 只校验配置与工具而不构建；加 `--dir` 只生成未打包的应用目录并跳过该扫描。
+该命令要求 Linux x64 宿主，且不使用 dotenv 或机器预设：应用 ID 使用 `com.deepseek.harness`，不包含更新源、强制更新策略与签名。外部工具 `rpmbuild`、`dpkg-deb`、`xz`、`fakeroot`、`readelf` 分别来自 `rpm`、`dpkg`、`xz-utils`、`fakeroot`、`binutils` 软件包。`DSH_DESKTOP_LINUX_PACK_CONCURRENCY` 选择工作区打包的并发数，默认为 `4`。命令把 AppImage、DEB、RPM 写入 `.desktop-build/targets/linux-x64/unsigned-artifacts/`。electron-builder 按格式命名架构，因此产物为 `deepseek-harness-<version>-linux-x86_64-unsigned.AppImage`、`deepseek-harness-<version>-linux-amd64-unsigned.deb`、`deepseek-harness-<version>-linux-x86_64-unsigned.rpm`，且不生成发布完成记录，因此上传命令无法发布这些产物。在 electron-builder 与打包后运行时冒烟之后，每个 ELF 文件都会用 `readelf --version-info` 扫描；任何要求的 glibc 高于 2.28 的二进制都会让构建失败并列出该文件，因为 electron-builder 在构建机上解析 libc 符号，较新的宿主会悄悄抬高产物的 glibc 下限。加 `--check` 只校验配置与工具而不构建；加 `--dir` 只生成未打包的应用目录并跳过该扫描。
 
 `Package Desktop · Linux · x64` [手动工作流](../../../.github/workflows/linux-package.yml) 运行在 `ubuntu-24.04` 上。它通过 `source_ref` 选择仓库内分支或 `dsh-v*` tag，像其他平台一样解析 `version_mode`（`default` 取 `build-number`）与 `build_version`，用 `apt` 安装打包工具与 Electron 运行库，产物与诊断日志保留 14 天，不发布任何内容。运行共用 `linux-desktop-package` 并发组，且不要求 `DESKTOP_PUBLISH_RUNNERS`。
 
-工作流随后验证 RPM 可以离线安装并运行：它构建一个预装 RPM 声明依赖的 AlmaLinux 8 镜像，在 `--network none` 下用禁用所有仓库的方式安装该包，并在容器内检查 Electron-as-Node、内置的 Node 与 Python 及其 Office 依赖库、pnpm、7 个 Office 技能、`runtime/cli/bin/dsh` 启动器，以及不存在 `app-update.yml`。未签名的 Linux 构建不带更新源，因此安装后的应用不会在启动时检查更新。GUI 渲染与账号登录不在该离线验证范围内。
+工作流随后验证 RPM 可以离线安装并运行：它构建一个预装 RPM 声明依赖的 [AlmaLinux 8 镜像](../../../.github/docker/linux-offline-smoke.Dockerfile)，在 `--network none` 下用禁用所有仓库的方式安装该包，并在容器内检查 Electron-as-Node、内置的 Node 与 Python 及其 Office 依赖库、pnpm、7 个 Office 技能、`runtime/cli/bin/dsh` 启动器，以及不存在 `app-update.yml`。未签名的 Linux 构建不带更新源，因此安装后的应用不会在启动时检查更新。GUI 渲染与账号登录不在该离线验证范围内。
 
 <a id="directory-and-preparation"></a>
 
