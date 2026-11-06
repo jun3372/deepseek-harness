@@ -40,7 +40,6 @@ export interface DesktopElectronBuilderConfig {
   }
   readonly linux: {
     readonly icon: string
-    readonly packageName: 'deepseek-harness'
     readonly executableName: 'deepseek-harness'
     readonly category: 'Development'
     readonly maintainer: string
@@ -54,6 +53,8 @@ export interface DesktopElectronBuilderConfig {
       readonly signingHashAlgorithms: readonly string[]
     }
   }
+  readonly deb: { readonly packageName: 'deepseek-harness' }
+  readonly rpm: { readonly packageName: 'deepseek-harness' }
   readonly nsis: {
     readonly uninstallDisplayName: '${productName}'
     readonly include: string

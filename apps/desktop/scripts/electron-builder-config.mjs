@@ -259,13 +259,14 @@ export function createElectronBuilderConfig(
     },
     linux: {
       icon: fileURLToPath(new URL('../resources/icon.png', import.meta.url)),
-      // RPM and DEB metadata need a single-token package identifier, not the display name.
-      packageName: 'deepseek-harness',
       executableName: 'deepseek-harness',
       category: 'Development',
       maintainer: 'Hangzhou DeepSeek Artificial Intelligence Co., Ltd.',
       target: ['AppImage', 'deb', 'rpm'],
     },
+    // FPM names the system package from these sections: RPM rejects the spaced display name.
+    deb: { packageName: 'deepseek-harness' },
+    rpm: { packageName: 'deepseek-harness' },
     nsis: {
       uninstallDisplayName: '${productName}',
       installerSidebar: join(buildPaths.root, 'installer-ui', 'uninstaller-sidebar.bmp'),
