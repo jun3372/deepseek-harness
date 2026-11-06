@@ -40,6 +40,7 @@ export interface DesktopElectronBuilderConfig {
   }
   readonly linux: {
     readonly icon: string
+    readonly packageName: 'deepseek-harness'
     readonly executableName: 'deepseek-harness'
     readonly category: 'Development'
     readonly maintainer: string

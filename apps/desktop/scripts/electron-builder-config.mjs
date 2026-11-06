@@ -259,6 +259,8 @@ export function createElectronBuilderConfig(
     },
     linux: {
       icon: fileURLToPath(new URL('../resources/icon.png', import.meta.url)),
+      // RPM and DEB metadata need a single-token package identifier, not the display name.
+      packageName: 'deepseek-harness',
       executableName: 'deepseek-harness',
       category: 'Development',
       maintainer: 'Hangzhou DeepSeek Artificial Intelligence Co., Ltd.',

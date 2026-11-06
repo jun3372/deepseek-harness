@@ -114,6 +114,7 @@ describe('installer preparation preserves application dependencies', () => {
       DSH_DESKTOP_UNSIGNED: '1',
     }, 'linux', 'x64')
     expect(config.linux).toMatchObject({
+      packageName: 'deepseek-harness',
       executableName: 'deepseek-harness',
       target: ['AppImage', 'deb', 'rpm'],
       maintainer: 'Hangzhou DeepSeek Artificial Intelligence Co., Ltd.',
